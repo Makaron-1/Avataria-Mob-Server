@@ -1,0 +1,42 @@
+from location import Location
+from modules.base_module import Module
+
+class_name = "Shop"
+
+class Shop(Module):
+    prefix = 'sh'
+    def __init__(self, server):
+        self.server = server
+        self.commands = {"bji": self.buy_game_item,
+                         "bwr": self.buy_wedding_ring,
+                         "bsrg": self.buy_game_item}
+
+    async def buy_game_item(self, msg, client):
+        item = msg['data']["tpid"]
+        cnt = msg['data']["cnt"]
+        await self.buy(client, item, count=cnt)
+
+    async def buy_wedding_ring(self, msg, client):
+        item = msg['data']["tpid"]
+        await self.buy(client, item)
+
+    async def buy(self, client, item, count=1, add=True):
+        if item not in self.server.game_items["game"]:
+            return False
+        if not self.server.game_items["game"][item]["canBuy"]:
+            return False
+        gold = self.server.game_items["game"][item]["gold"]*count
+        silver = self.server.game_items["game"][item]["silver"]*count
+        user_data = await Location(self.server, client).gen_plr()
+        if user_data['res']["gld"] < gold or user_data['res']["slvr"] < silver:
+            return False
+        redis = self.server.redis
+        await redis.set(f"uid:{client.uid}:gld", user_data['res']["gld"]-gold)
+        await redis.set(f"uid:{client.uid}:slvr", user_data['res']["slvr"]-silver)
+        if add:
+            await self.server.add_item(client.uid, item, "gm", count)
+            cnt = int(await redis.lindex(f"uid:{client.uid}:items:{item}", 1))
+            inv = await Location(self.server, client)._get_inventory()
+            await client.send({'data': {'inv': inv}, 'command': 'ntf.inv'})
+            await Location(self.server, client).ntf_res()
+        return True
