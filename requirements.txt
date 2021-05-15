@@ -1,0 +1,10 @@
+pre-commit
+# game server
+bitstring
+redis
+lxml
+# web
+aiohttp
+aiohttp_session
+aiohttp_jinja2
+
